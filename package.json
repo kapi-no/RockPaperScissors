@@ -1,0 +1,33 @@
+{
+  "name": "rockpaperscissors",
+  "version": "1.0.0",
+  "description": "Ethereum smart contract project created with Truffle framework",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kapi-no/RockPaperScissors.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kapi-no/RockPaperScissors/issues"
+  },
+  "homepage": "https://github.com/kapi-no/RockPaperScissors#readme",
+  "dependencies": {
+    "openzeppelin-solidity": "^2.2.0",
+    "truffle-contract": "^4.0.11",
+    "web3": "1.0.0-beta.37"
+  },
+  "devDependencies": {
+    "assert-plus": "^1.0.0",
+    "ganache-cli": "6.4.2",
+    "mocha": "^5.2.0",
+    "truffle": "5.0.8"
+  }
+}
