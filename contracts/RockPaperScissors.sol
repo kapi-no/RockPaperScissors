@@ -155,19 +155,31 @@ contract RockPaperScissors is Ownable {
         require(sessionHash != bytes32(0), "sessionHash parameter cannot be equal to 0");
 
         GameSession storage session = gameSessions[sessionHash];
+        address initAddress = session.initPlayer.account;
+        address challengedAddress = session.challengedPlayer.account;
 
-        require(msg.sender == session.initPlayer.account ||
-                msg.sender == session.challengedPlayer.account,
+        require(msg.sender == initAddress || msg.sender == challengedAddress,
                 "Session can only be canceled by the session participants");
         require(now >= session.expirationTime, "Session has not expired yet");
 
         uint stake = session.stake;
-        if (session.initPlayer.account != address(0) &&
-            session.challengedPlayer.account != address(0)) {
+        if (session.initPlayer.lastMove != PlayerMove.NO_MOVE &&
+            session.challengedPlayer.lastMove == PlayerMove.NO_MOVE) {
             stake = stake.add(stake);
+            balances[initAddress] = balances[initAddress].add(stake);
+        } else if (session.initPlayer.lastMove == PlayerMove.NO_MOVE &&
+            session.challengedPlayer.lastMove != PlayerMove.NO_MOVE) {
+            stake = stake.add(stake);
+            balances[challengedAddress] = balances[challengedAddress].add(stake);
+        } else { // Game Session state is either Initialized or Accepted.
+            balances[initAddress] = balances[initAddress].add(stake);
+
+            if (session.challengedPlayer.moveHash != bytes32(0)) {
+                // Accepted state: stake commited by the challenged player.
+                balances[challengedAddress] = balances[challengedAddress].add(stake);
+            }
         }
 
-        balances[msg.sender] = balances[msg.sender].add(stake);
         delete gameSessions[sessionHash];
 
         emit LogSessionCanceled(msg.sender, sessionHash);
