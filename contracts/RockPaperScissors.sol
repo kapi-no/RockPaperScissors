@@ -51,17 +51,19 @@ contract RockPaperScissors is Ownable {
         emit LogSessionExpirationPeriod(msg.sender, _sessionExpirationPeriod);
     }
 
-    function getSessionHash(address firstPlayer, address secondPlayer) public pure
+    function getSessionHash(address firstPlayer, address secondPlayer, bytes32 salt) public pure
     returns (bytes32 sessionHash) {
         require(firstPlayer != address(0),
             "firstPlayer parameter cannot be equal to 0 address");
         require(secondPlayer != address(0),
             "secondPlayer parameter cannot be equal to 0 address");
+        require(salt != bytes32(0),
+            "salt parameter cannot be equal to 0");
 
         if (uint(firstPlayer) > uint(secondPlayer)) {
-            sessionHash = keccak256(abi.encodePacked(firstPlayer, secondPlayer));
+            sessionHash = keccak256(abi.encodePacked(firstPlayer, secondPlayer, salt));
         } else {
-            sessionHash = keccak256(abi.encodePacked(secondPlayer, firstPlayer));
+            sessionHash = keccak256(abi.encodePacked(secondPlayer, firstPlayer, salt));
         }
     }
 
@@ -92,8 +94,8 @@ contract RockPaperScissors is Ownable {
         accessHash = keccak256(abi.encodePacked(sessionHash, address(this), secret, move));
     }
 
-    function initSession(address challengedAddress, uint stake, bytes32 moveHash) public
-    returns (bytes32 sessionHash) {
+    function initSession(address challengedAddress, uint stake, bytes32 moveHash, bytes32 salt)
+    public returns (bytes32 sessionHash) {
         require(challengedAddress != address(0),
             "challengedAddress parameter cannot be equal to 0");
         require(challengedAddress != msg.sender,
@@ -102,7 +104,7 @@ contract RockPaperScissors is Ownable {
             "stake parameter cannot be greater than the account balance");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
-        sessionHash = getSessionHash(msg.sender, challengedAddress);
+        sessionHash = getSessionHash(msg.sender, challengedAddress, salt);
         GameSession storage session = gameSessions[sessionHash];
 
         require(session.expirationTime == 0, "Session cannot be reinitialized");

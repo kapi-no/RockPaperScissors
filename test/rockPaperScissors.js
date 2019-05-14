@@ -208,6 +208,7 @@ describe("RockPaperScissors", function() {
         const bobInitialBalance = 1000;
         const aliceInitialBalance = 1000;
 
+        let salt;
         let sessionHash;
 
         const PlayerMove = {
@@ -218,8 +219,9 @@ describe("RockPaperScissors", function() {
         };
 
         before("setup global variables for game session", async () => {
+            salt = (await web3.eth.getBlock("latest")).hash;
             sessionHash = await rockPaperScissorsInstance.getSessionHash(
-                aliceAddress, bobAddress);
+                aliceAddress, bobAddress, salt);
         });
 
         beforeEach('setup initial balance for Alice and Bob', async () => {
@@ -236,7 +238,7 @@ describe("RockPaperScissors", function() {
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
                 sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
                 {from: aliceAddress});
 
             const gameSession = await
@@ -270,17 +272,17 @@ describe("RockPaperScissors", function() {
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
                 sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
                 {from: aliceAddress});
 
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                bobAddress, stake, moveHash, {from: aliceAddress}));
+                bobAddress, stake, moveHash, salt, {from: aliceAddress}));
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                bobAddress, stake, moveHash, {from: bobAddress}));
+                bobAddress, stake, moveHash, salt, {from: bobAddress}));
 
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
@@ -295,7 +297,7 @@ describe("RockPaperScissors", function() {
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
                 sessionHash, secret, aliceMove, {from: aliceAddress});
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
                 {from: aliceAddress});
 
             const initGameSession = await
@@ -316,7 +318,7 @@ describe("RockPaperScissors", function() {
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
                 sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
                 {from: aliceAddress});
 
             const initGameSession = await
@@ -326,7 +328,7 @@ describe("RockPaperScissors", function() {
                 sessionHash, stake, moveHash, {from: aliceAddress}));
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                aliceAddress, stake, moveHash, {from: bobAddress}));
+                aliceAddress, stake, moveHash, salt, {from: bobAddress}));
 
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
@@ -343,7 +345,7 @@ describe("RockPaperScissors", function() {
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
                 {from: aliceAddress});
             await web3.evm.increaseTime(defaultSessionExpirationPeriod);
             await rockPaperScissorsInstance.cancelSession(sessionHash, {from: aliceAddress});
@@ -361,10 +363,10 @@ describe("RockPaperScissors", function() {
                 sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                    bobAddress, stake, moveHash, {from: aliceAddress}));
+                    bobAddress, stake, moveHash, salt, {from: aliceAddress}));
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                bobAddress, stake, moveHash, {from: bobAddress}));
+                bobAddress, stake, moveHash, salt, {from: bobAddress}));
         });
 
         it('should establish game session between Alice & Bob', async () => {
@@ -380,7 +382,7 @@ describe("RockPaperScissors", function() {
                 sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
+                salt, {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
 
@@ -432,7 +434,7 @@ describe("RockPaperScissors", function() {
                 sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
+                salt, {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
             await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
@@ -490,7 +492,7 @@ describe("RockPaperScissors", function() {
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
+                salt, {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
             await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
