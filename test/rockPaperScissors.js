@@ -246,7 +246,7 @@ describe("RockPaperScissors", function() {
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
-            assert.strictEqual(gameSession.totalStake.toString(), stake.toString(),
+            assert.strictEqual(gameSession.stake.toString(), stake.toString(),
                 "Stake is not correct");
             assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
 
@@ -391,7 +391,7 @@ describe("RockPaperScissors", function() {
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
-            assert.strictEqual(gameSession.totalStake.toString(), (2 * stake).toString(),
+            assert.strictEqual(gameSession.stake.toString(), stake.toString(),
                 "Stake is not correct");
             assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
 
@@ -445,7 +445,7 @@ describe("RockPaperScissors", function() {
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
-            assert.strictEqual(gameSession.totalStake.toString(), (2 * stake).toString(),
+            assert.strictEqual(gameSession.stake.toString(), stake.toString(),
                 "Stake is not correct");
             assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
 

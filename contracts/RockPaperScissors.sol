@@ -36,7 +36,7 @@ contract RockPaperScissors is Ownable {
     struct GameSession {
         Player initPlayer;
         Player challengedPlayer;
-        uint totalStake;
+        uint stake;
         uint expirationTime;
     }
 
@@ -57,7 +57,7 @@ contract RockPaperScissors is Ownable {
         require(secondPlayer != address(0),
             "secondPlayer parameter cannot be equal to 0 address");
 
-        if (firstPlayer > secondPlayer) {
+        if (uint(firstPlayer) > uint(secondPlayer)) {
             sessionHash = keccak256(abi.encodePacked(firstPlayer, secondPlayer));
         } else {
             sessionHash = keccak256(abi.encodePacked(secondPlayer, firstPlayer));
@@ -65,7 +65,7 @@ contract RockPaperScissors is Ownable {
     }
 
     function lookupSessionResult(PlayerMove firstMove, PlayerMove secondMove)
-    private pure returns (int result) {
+    public pure returns (int result) {
         if      ((firstMove == PlayerMove.ROCK) && (secondMove == PlayerMove.ROCK)) return 0;
         else if ((firstMove == PlayerMove.ROCK) && (secondMove == PlayerMove.PAPER)) return -1;
         else if ((firstMove == PlayerMove.ROCK) && (secondMove == PlayerMove.SCISSORS)) return 1;
@@ -93,7 +93,7 @@ contract RockPaperScissors is Ownable {
     }
 
     function initSession(address challengedAddress, uint stake, bytes32 moveHash) public
-    returns (bool success) {
+    returns (bytes32 sessionHash) {
         require(challengedAddress != address(0),
             "challengedAddress parameter cannot be equal to 0");
         require(challengedAddress != msg.sender,
@@ -102,13 +102,13 @@ contract RockPaperScissors is Ownable {
             "stake parameter cannot be greater than the account balance");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
-        bytes32 sessionHash = getSessionHash(msg.sender, challengedAddress);
+        sessionHash = getSessionHash(msg.sender, challengedAddress);
         GameSession storage session = gameSessions[sessionHash];
 
         require(session.expirationTime == 0, "Session cannot be reinitialized");
 
         balances[msg.sender] = balances[msg.sender].sub(stake);
-        session.totalStake = stake;
+        session.stake = stake;
         session.expirationTime = now.add(sessionExpirationPeriod);
 
         session.initPlayer.account = msg.sender;
@@ -118,8 +118,6 @@ contract RockPaperScissors is Ownable {
 
         emit LogSessionInitialized(msg.sender, challengedAddress, stake);
         emit LogSessionMoveMade(msg.sender, moveHash);
-
-        return true;
     }
 
     function acceptSession(address initAddress, bytes32 moveHash) public
@@ -131,16 +129,15 @@ contract RockPaperScissors is Ownable {
         GameSession storage session = gameSessions[sessionHash];
 
         require(session.initPlayer.account != address(0), "initPlayer is not initialized");
-        require(session.totalStake <= balances[msg.sender],
+        require(session.stake <= balances[msg.sender],
             "challenged player balance is too low");
 
         require(session.challengedPlayer.moveHash == bytes32(0),
             "Session cannot be accepted more than once");
 
-        uint stake = session.totalStake;
+        uint stake = session.stake;
 
         balances[msg.sender] = balances[msg.sender].sub(stake);
-        session.totalStake = session.totalStake.add(stake);
         session.expirationTime = now.add(sessionExpirationPeriod);
 
         session.challengedPlayer.moveHash = moveHash;
@@ -159,7 +156,13 @@ contract RockPaperScissors is Ownable {
 
         require(now >= session.expirationTime, "Session has not expired yet");
 
-        balances[msg.sender] = balances[msg.sender].add(session.totalStake);
+        uint stake = session.stake;
+        if (session.initPlayer.account != address(0) &&
+            session.challengedPlayer.account != address(0)) {
+            stake = stake.add(stake);
+        }
+
+        balances[msg.sender] = balances[msg.sender].add(stake);
         delete gameSessions[sessionHash];
 
         emit LogSessionCanceled(msg.sender, rivalAddress);
@@ -186,9 +189,7 @@ contract RockPaperScissors is Ownable {
             emit LogSessionMoveRevealed(msg.sender, rivalAddress, secret, move);
 
             session.initPlayer.lastMove = move;
-        }
-
-        if (msg.sender == session.challengedPlayer.account) {
+        } else if (msg.sender == session.challengedPlayer.account) {
             require(session.challengedPlayer.lastMove == PlayerMove.NO_MOVE,
                 "Cannot reveal the move again");
             require(session.challengedPlayer.moveHash == moveHash, "Move hash does not match");
@@ -196,15 +197,17 @@ contract RockPaperScissors is Ownable {
             emit LogSessionMoveRevealed(msg.sender, rivalAddress, secret, move);
 
             session.challengedPlayer.lastMove = move;
+        } else {
+            revert("Unauthorized access to the request session");
         }
 
         if ((session.initPlayer.lastMove != PlayerMove.NO_MOVE) &&
             (session.challengedPlayer.lastMove != PlayerMove.NO_MOVE)) {
             int result = lookupSessionResult(session.initPlayer.lastMove,
                 session.challengedPlayer.lastMove);
-            uint stake = session.totalStake;
+            uint stake = session.stake;
 
-            stake = (result != 0) ? stake : (stake << 1);
+            stake = (result != 0) ? stake.add(stake) : stake;
 
             if (result >= 0) {
                 balances[session.initPlayer.account] =
@@ -227,9 +230,11 @@ contract RockPaperScissors is Ownable {
     }
 
     function withdrawFunds(uint amount) public returns (bool success) {
-        require(balances[msg.sender] >= amount, "Balance is too low");
+        uint balance = balances[msg.sender];
 
-        balances[msg.sender] = balances[msg.sender].sub(amount);
+        require(balance >= amount, "Balance is too low");
+
+        balances[msg.sender] = balance.sub(amount);
 
         emit LogFundsWithdrawn(msg.sender, amount);
 
