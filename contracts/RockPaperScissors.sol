@@ -91,6 +91,7 @@ contract RockPaperScissors is Ownable {
             "challengedAddress cannot be equal to initAddress");
         require(stake <= balances[msg.sender],
             "stake parameter cannot be greater than the account balance");
+        require((stake << 1) >= stake, "Total stake overflowed");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
         sessionHash = getSessionHash(msg.sender, challengedAddress, salt);
@@ -118,12 +119,10 @@ contract RockPaperScissors is Ownable {
 
         GameSession storage session = gameSessions[sessionHash];
 
-        require(session.initPlayer.account != address(0), "initPlayer is not initialized");
-        require(session.stake <= balances[msg.sender],
-            "challenged player balance is too low");
-
         require(session.challengedPlayer.account == msg.sender,
             "Session can be accepted only by the challenged player");
+        require(session.stake <= balances[msg.sender],
+            "challenged player balance is too low");
         require(session.challengedPlayer.moveHash == bytes32(0),
             "Session cannot be accepted more than once");
 
@@ -154,12 +153,12 @@ contract RockPaperScissors is Ownable {
         uint stake = session.stake;
         if (session.initPlayer.lastMove != PlayerMove.NO_MOVE &&
             session.challengedPlayer.lastMove == PlayerMove.NO_MOVE) {
-            stake = stake.add(stake);
-            balances[initAddress] = balances[initAddress].add(stake);
+
+            balances[initAddress] = balances[initAddress].add(stake << 1);
         } else if (session.initPlayer.lastMove == PlayerMove.NO_MOVE &&
             session.challengedPlayer.lastMove != PlayerMove.NO_MOVE) {
-            stake = stake.add(stake);
-            balances[challengedAddress] = balances[challengedAddress].add(stake);
+
+            balances[challengedAddress] = balances[challengedAddress].add(stake << 1);
         } else { // Game Session state is either Initialized or Accepted.
             balances[initAddress] = balances[initAddress].add(stake);
 
@@ -217,7 +216,7 @@ contract RockPaperScissors is Ownable {
                 session.challengedPlayer.lastMove);
             uint stake = session.stake;
 
-            stake = (result != 0) ? stake.add(stake) : stake;
+            stake = (result != 0) ? (stake << 1) : stake;
 
             if (result >= 0) {
                 balances[session.initPlayer.account] =
