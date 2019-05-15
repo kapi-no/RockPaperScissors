@@ -369,315 +369,253 @@ describe("RockPaperScissors", function() {
                 bobAddress, stake, moveHash, {from: bobAddress}));
         });
 
-        it('should establish game session between Alice & Bob', async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
+        describe("game session after Bob response to the challenge", function() {
+
+            let stake;
+            let block;
 
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
+            let aliceMove;
+            let aliceSecret;
+            let aliceMoveHash;
 
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+            let bobMove;
+            let bobSecret;
+            let bobMoveHash;
+
+            let sessionHash;
+
+            beforeEach('setup game session with a revealed move', async () => {
+                stake = 500;
+                block = await web3.eth.getBlock("latest");
+
+                aliceMove = PlayerMove.SCISSORS;
+                aliceSecret = soliditySha3("alice_password", block);
+                aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
+                    aliceSecret, aliceMove, {from: aliceAddress});
+
+                bobMove = PlayerMove.PAPER;
+                bobSecret = soliditySha3("bob_password", block);
+                bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
+                    bobSecret, bobMove, {from: bobAddress});
+
+                sessionHash = aliceMoveHash;
+            });
+
+            it('should establish game session between Alice & Bob', async () => {
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                assert.strictEqual(gameSession.stake.toString(), stake.toString(),
+                    "Stake is not correct");
+                assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
+
+                assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
+                    "Init address is not correct");
+                assert.strictEqual(gameSession.initPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
+                    "Init move is not correct");
+
+                assert.strictEqual(gameSession.challengedPlayer.account, bobAddress,
+                    "Challenged address is not correct");
+                assert.strictEqual(gameSession.challengedPlayerMoveHash, bobMoveHash,
+                    "Challenged move hash is not correct");
+                assert.strictEqual(gameSession.challengedPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
+                    "Challenged move is not correct");
+
+                const aliceBalance = await
+                    rockPaperScissorsInstance.balances(aliceAddress);
+                const bobBalance = await
+                    rockPaperScissorsInstance.balances(bobAddress);
+
+                assert.strictEqual(aliceBalance.toString(),
+                    (aliceInitialBalance - stake).toString(),
+                    "Alice balance is not correct");
+                assert.strictEqual(bobBalance.toString(),
+                    (bobInitialBalance - stake).toString(),
+                    "Bob balance is not correct");
+            });
+
+            it('should not let cancel the session immediately after Bob response to the challenge',
+                async () => {
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+
+                await web3.evm.increaseTime(defaultSessionExpirationPeriod);
+
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+
+                const initGameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                await truffleAssert.fails(rockPaperScissorsInstance.cancelSession(sessionHash,
+                    {from: bobAddress}));
+
+                await truffleAssert.fails(rockPaperScissorsInstance.acceptSession(sessionHash,
+                    bobMoveHash, {from: bobAddress}));
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
+            });
+
+            it('should let cancel the session after Bob response to the challenge', async () => {
+                const initGameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+
+                await web3.evm.increaseTime(defaultSessionExpirationPeriod);
+                await rockPaperScissorsInstance.cancelSession(sessionHash, {from: bobAddress});
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+                const aliceBalance = await
+                    rockPaperScissorsInstance.balances(aliceAddress);
+                const bobBalance = await
+                    rockPaperScissorsInstance.balances(bobAddress);
+
+                assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
+                assert.strictEqual(aliceBalance.toString(), aliceInitialBalance.toString(),
+                    "Alice balance should not have changed");
+                assert.strictEqual(bobBalance.toString(), bobInitialBalance.toString(),
+                    "Bob balance should not have changed");
+            });
+
+            it('should let Alice reveal her move', async () => {
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+                await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
+                    aliceMove, {from: aliceAddress});
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                assert.strictEqual(gameSession.stake.toString(), stake.toString(),
+                    "Stake is not correct");
+                assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
+
+                assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
+                    "Init address is not correct");
+                assert.strictEqual(gameSession.initPlayer.lastMove, aliceMove.toString(),
+                    "Init move is not correct");
+
+                assert.strictEqual(gameSession.challengedPlayer.account, bobAddress,
+                    "Challenged address is not correct");
+                assert.strictEqual(gameSession.challengedPlayerMoveHash, bobMoveHash,
+                    "Challenged move hash is not correct");
+                assert.strictEqual(gameSession.challengedPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
+                    "Challenged move is not correct");
+
+                const aliceBalance = await
+                    rockPaperScissorsInstance.balances(aliceAddress);
+                const bobBalance = await
+                    rockPaperScissorsInstance.balances(bobAddress);
+
+                assert.strictEqual(aliceBalance.toString(),
+                    (aliceInitialBalance - stake).toString(),
+                    "Alice balance is not correct");
+                assert.strictEqual(bobBalance.toString(),
+                    (bobInitialBalance - stake).toString(),
+                    "Bob balance is not correct");
+            });
+
+            it('should not let cancel the session immediately after Alice move is revealed',
+                async () => {
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+
+                await web3.evm.increaseTime(defaultSessionExpirationPeriod);
+
+                await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
+                    aliceMove, {from: aliceAddress});
+
+                const initGameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                await truffleAssert.fails(rockPaperScissorsInstance.cancelSession(sessionHash,
+                    {from: bobAddress}));
+
+                await truffleAssert.fails(rockPaperScissorsInstance.revealSessionMove(sessionHash,
+                    aliceSecret, aliceMove, {from: aliceAddress}));
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
+            });
+
+            it('should let cancel the session after Alice move is revealed', async () => {
+                const initGameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+                await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
+                    aliceMove, {from: aliceAddress});
+
+                await web3.evm.increaseTime(defaultSessionExpirationPeriod);
+                await rockPaperScissorsInstance.cancelSession(sessionHash, {from: aliceAddress});
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+                const aliceBalance = await
+                    rockPaperScissorsInstance.balances(aliceAddress);
+                const bobBalance = await
+                    rockPaperScissorsInstance.balances(bobAddress);
+
+                assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
+                assert.strictEqual(aliceBalance.toString(), (aliceInitialBalance + stake).toString(),
+                    "Alice should have claimed the staked reward");
+                assert.strictEqual(bobBalance.toString(), (bobInitialBalance - stake).toString(),
+                    "Bob should have lost his stake");
+            });
+
+            it('should let Alice win', async () => {
+                const initGameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
+                    {from: aliceAddress});
+                await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
+                    {from: bobAddress});
+                await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
+                    aliceMove, {from: aliceAddress});
+                await rockPaperScissorsInstance.revealSessionMove(sessionHash, bobSecret,
+                    bobMove, {from: bobAddress});
+
+                const gameSession = await
+                    rockPaperScissorsInstance.gameSessions(sessionHash);
+
+                assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
+
+                const aliceBalance = await
+                    rockPaperScissorsInstance.balances(aliceAddress);
+                const bobBalance = await
+                    rockPaperScissorsInstance.balances(bobAddress);
+
+                assert.strictEqual(aliceBalance.toString(),
+                    (aliceInitialBalance + stake).toString(),
+                    "Alice balance is not correct");
+                assert.strictEqual(bobBalance.toString(),
+                    (bobInitialBalance - stake).toString(),
+                    "Bob balance is not correct");
+            });
 
-            const sessionHash = aliceMoveHash;
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            assert.strictEqual(gameSession.stake.toString(), stake.toString(),
-                "Stake is not correct");
-            assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
-
-            assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
-                "Init address is not correct");
-            assert.strictEqual(gameSession.initPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
-                "Init move is not correct");
-
-            assert.strictEqual(gameSession.challengedPlayer.account, bobAddress,
-                "Challenged address is not correct");
-            assert.strictEqual(gameSession.challengedPlayerMoveHash, bobMoveHash,
-                "Challenged move hash is not correct");
-            assert.strictEqual(gameSession.challengedPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
-                "Challenged move is not correct");
-
-            const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
-            const bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
-
-            assert.strictEqual(aliceBalance.toString(),
-                (aliceInitialBalance - stake).toString(),
-                "Alice balance is not correct");
-            assert.strictEqual(bobBalance.toString(),
-                (bobInitialBalance - stake).toString(),
-                "Bob balance is not correct");
-        });
-
-        it('should not let cancel the session immediately after Bob response to the challenge',
-            async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
-
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
-
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, PlayerMove.PAPER, {from: bobAddress});
-
-            const sessionHash = aliceMoveHash;
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-
-            await web3.evm.increaseTime(defaultSessionExpirationPeriod);
-
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-
-            const initGameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            await truffleAssert.fails(rockPaperScissorsInstance.cancelSession(sessionHash,
-                {from: bobAddress}));
-
-            await truffleAssert.fails(rockPaperScissorsInstance.acceptSession(sessionHash,
-                bobMoveHash, {from: bobAddress}));
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
-        });
-
-        it('should let cancel the session after Bob response to the challenge', async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
-
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
-
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, PlayerMove.PAPER, {from: bobAddress});
-
-            const sessionHash = aliceMoveHash;
-
-            const initGameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-
-            await web3.evm.increaseTime(defaultSessionExpirationPeriod);
-            await rockPaperScissorsInstance.cancelSession(sessionHash, {from: bobAddress});
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-            const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
-            const bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
-
-            assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
-            assert.strictEqual(aliceBalance.toString(), aliceInitialBalance.toString(),
-                "Alice balance should not have changed");
-            assert.strictEqual(bobBalance.toString(), bobInitialBalance.toString(),
-                "Bob balance should not have changed");
-        });
-
-        it('should let Alice reveal her move', async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
-
-            const aliceMove = PlayerMove.SCISSORS;
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, aliceMove, {from: aliceAddress});
-
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, PlayerMove.PAPER, {from: bobAddress});
-
-            const sessionHash = aliceMoveHash;
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-            await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
-                aliceMove, {from: aliceAddress});
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            assert.strictEqual(gameSession.stake.toString(), stake.toString(),
-                "Stake is not correct");
-            assert.ok(gameSession.expirationTime > 0, "Expiration time is not set");
-
-            assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
-                "Init address is not correct");
-            assert.strictEqual(gameSession.initPlayer.lastMove, aliceMove.toString(),
-                "Init move is not correct");
-
-            assert.strictEqual(gameSession.challengedPlayer.account, bobAddress,
-                "Challenged address is not correct");
-            assert.strictEqual(gameSession.challengedPlayerMoveHash, bobMoveHash,
-                "Challenged move hash is not correct");
-            assert.strictEqual(gameSession.challengedPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
-                "Challenged move is not correct");
-
-            const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
-            const bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
-
-            assert.strictEqual(aliceBalance.toString(),
-                (aliceInitialBalance - stake).toString(),
-                "Alice balance is not correct");
-            assert.strictEqual(bobBalance.toString(),
-                (bobInitialBalance - stake).toString(),
-                "Bob balance is not correct");
-        });
-
-        it('should not let cancel the session immediately after Alice move is revealed',
-            async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
-
-            const aliceMove = PlayerMove.SCISSORS;
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, aliceMove, {from: aliceAddress});
-
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, PlayerMove.PAPER, {from: bobAddress});
-
-            const sessionHash = aliceMoveHash;
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-
-            await web3.evm.increaseTime(defaultSessionExpirationPeriod);
-
-            await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
-                aliceMove, {from: aliceAddress});
-
-            const initGameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            await truffleAssert.fails(rockPaperScissorsInstance.cancelSession(sessionHash,
-                {from: bobAddress}));
-
-            await truffleAssert.fails(rockPaperScissorsInstance.revealSessionMove(sessionHash,
-                aliceSecret, aliceMove, {from: aliceAddress}));
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
-        });
-
-        it('should let cancel the session after Alice move is revealed', async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
-
-            const aliceMove = PlayerMove.SCISSORS;
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, aliceMove, {from: aliceAddress});
-
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, PlayerMove.PAPER, {from: bobAddress});
-
-            const sessionHash = aliceMoveHash;
-
-            const initGameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-            await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
-                aliceMove, {from: aliceAddress});
-
-            await web3.evm.increaseTime(defaultSessionExpirationPeriod);
-            await rockPaperScissorsInstance.cancelSession(sessionHash, {from: aliceAddress});
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-            const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
-            const bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
-
-            assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
-            assert.strictEqual(aliceBalance.toString(), (aliceInitialBalance + stake).toString(),
-                "Alice should have claimed the staked reward");
-            assert.strictEqual(bobBalance.toString(), (bobInitialBalance - stake).toString(),
-                "Bob should have lost his stake");
-        });
-
-        it('should let Alice win', async () => {
-            const stake = 500;
-            const block = await web3.eth.getBlock("latest");
-
-            const aliceMove = PlayerMove.SCISSORS;
-            const aliceSecret = soliditySha3("alice_password", block);
-            const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                aliceSecret, aliceMove, {from: aliceAddress});
-
-            const bobMove = PlayerMove.PAPER;
-            const bobSecret = soliditySha3("bob_password", block);
-            const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                bobSecret, bobMove, {from: bobAddress});
-
-            const sessionHash = aliceMoveHash;
-
-            const initGameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                {from: aliceAddress});
-            await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
-                {from: bobAddress});
-            await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
-                aliceMove, {from: aliceAddress});
-            await rockPaperScissorsInstance.revealSessionMove(sessionHash, bobSecret,
-                bobMove, {from: bobAddress});
-
-            const gameSession = await
-                rockPaperScissorsInstance.gameSessions(sessionHash);
-
-            assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
-
-            const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
-            const bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
-
-            assert.strictEqual(aliceBalance.toString(),
-                (aliceInitialBalance + stake).toString(),
-                "Alice balance is not correct");
-            assert.strictEqual(bobBalance.toString(),
-                (bobInitialBalance - stake).toString(),
-                "Bob balance is not correct");
         });
 
         it('should return correct game result in different scenarios', async () => {
