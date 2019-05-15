@@ -51,39 +51,23 @@ contract RockPaperScissors is Ownable {
         emit LogSessionExpirationPeriod(msg.sender, _sessionExpirationPeriod);
     }
 
-    function getSessionHash(address firstPlayer, address secondPlayer, bytes32 salt) public pure
-    returns (bytes32 sessionHash) {
-        require(firstPlayer != address(0),
-            "firstPlayer parameter cannot be equal to 0 address");
-        require(secondPlayer != address(0),
-            "secondPlayer parameter cannot be equal to 0 address");
-        require(salt != bytes32(0),
-            "salt parameter cannot be equal to 0");
-
-        if (uint(firstPlayer) > uint(secondPlayer)) {
-            sessionHash = keccak256(abi.encodePacked(firstPlayer, secondPlayer, salt));
-        } else {
-            sessionHash = keccak256(abi.encodePacked(secondPlayer, firstPlayer, salt));
-        }
-    }
-
     function lookupSessionResult(PlayerMove firstMove, PlayerMove secondMove)
     public pure returns (int result) {
         result = (3 + int(firstMove) - int(secondMove)) % 3;
         result = (result != 2) ? result : -1;
     }
 
-    function getMoveHash(bytes32 sessionHash, bytes32 secret, PlayerMove move)
-    public view returns (bytes32 accessHash) {
+    function getMoveHash(bytes32 secret, PlayerMove move) public view
+    returns (bytes32 accessHash) {
         require(secret != bytes32(0), "secret parameter cannot be equal to 0");
         require((uint(move) > uint(PlayerMove.NO_MOVE)) &&
                 (uint(move) <= uint(PlayerMove.SCISSORS)),
                 "move parameter value is incorrect");
 
-        accessHash = keccak256(abi.encodePacked(sessionHash, address(this), secret, move));
+        accessHash = keccak256(abi.encodePacked(msg.sender, address(this), secret, move));
     }
 
-    function initSession(address challengedAddress, uint stake, bytes32 moveHash, bytes32 salt)
+    function initSession(address challengedAddress, uint stake, bytes32 moveHash)
     public returns (bytes32 sessionHash) {
         require(challengedAddress != address(0),
             "challengedAddress parameter cannot be equal to 0");
@@ -94,7 +78,7 @@ contract RockPaperScissors is Ownable {
         require((stake << 1) >= stake, "Total stake overflowed");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
-        sessionHash = getSessionHash(msg.sender, challengedAddress, salt);
+        sessionHash = moveHash;
         GameSession storage session = gameSessions[sessionHash];
 
         require(session.expirationTime == 0, "Session cannot be reinitialized");
@@ -187,7 +171,7 @@ contract RockPaperScissors is Ownable {
                 "Cannot reveal moves at this session state");
 
         if (msg.sender == session.initPlayer.account) {
-            bytes32 moveHash = getMoveHash(sessionHash, secret, move);
+            bytes32 moveHash = getMoveHash(secret, move);
 
             require(session.initPlayer.lastMove == PlayerMove.NO_MOVE,
                 "Cannot reveal the move again");
@@ -197,7 +181,7 @@ contract RockPaperScissors is Ownable {
 
             session.initPlayer.lastMove = move;
         } else if (msg.sender == session.challengedPlayer.account) {
-            bytes32 moveHash = getMoveHash(sessionHash, secret, move);
+            bytes32 moveHash = getMoveHash(secret, move);
 
             require(session.challengedPlayer.lastMove == PlayerMove.NO_MOVE,
                 "Cannot reveal the move again");

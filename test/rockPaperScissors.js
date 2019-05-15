@@ -208,21 +208,12 @@ describe("RockPaperScissors", function() {
         const bobInitialBalance = 1000;
         const aliceInitialBalance = 1000;
 
-        let salt;
-        let sessionHash;
-
         const PlayerMove = {
             NO_MOVE: 0,
             ROCK: 1,
             PAPER: 2,
             SCISSORS: 3
         };
-
-        before("setup global variables for game session", async () => {
-            salt = (await web3.eth.getBlock("latest")).hash;
-            sessionHash = await rockPaperScissorsInstance.getSessionHash(
-                aliceAddress, bobAddress, salt);
-        });
 
         beforeEach('setup initial balance for Alice and Bob', async () => {
             await rockPaperScissorsInstance.depositFunds(
@@ -236,9 +227,10 @@ describe("RockPaperScissors", function() {
             const stake = 500;
             const secret = soliditySha3("password", await web3.eth.getBlock("latest"));
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
+                secret, PlayerMove.SCISSORS, {from: aliceAddress});
+            const sessionHash = moveHash;
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
                 {from: aliceAddress});
 
             const gameSession = await
@@ -270,19 +262,20 @@ describe("RockPaperScissors", function() {
             const stake = 500;
             const secret = soliditySha3("password", await web3.eth.getBlock("latest"));
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
+                secret, PlayerMove.SCISSORS, {from: aliceAddress});
+            const sessionHash = moveHash;
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
                 {from: aliceAddress});
 
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                bobAddress, stake, moveHash, salt, {from: aliceAddress}));
+                bobAddress, stake, moveHash, {from: aliceAddress}));
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                bobAddress, stake, moveHash, salt, {from: bobAddress}));
+                bobAddress, stake, moveHash, {from: bobAddress}));
 
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
@@ -295,9 +288,10 @@ describe("RockPaperScissors", function() {
             const secret = soliditySha3("password", await web3.eth.getBlock("latest"));
             const aliceMove = PlayerMove.SCISSORS;
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, secret, aliceMove, {from: aliceAddress});
+                secret, aliceMove, {from: aliceAddress});
+            const sessionHash = moveHash;
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
                 {from: aliceAddress});
 
             const initGameSession = await
@@ -317,9 +311,10 @@ describe("RockPaperScissors", function() {
             const stake = 500;
             const secret = soliditySha3("password", await web3.eth.getBlock("latest"));
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
+                secret, PlayerMove.SCISSORS, {from: aliceAddress});
+            const sessionHash = moveHash;
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
                 {from: aliceAddress});
 
             const initGameSession = await
@@ -329,7 +324,7 @@ describe("RockPaperScissors", function() {
                 sessionHash, stake, moveHash, {from: aliceAddress}));
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                aliceAddress, stake, moveHash, salt, {from: bobAddress}));
+                aliceAddress, stake, moveHash, {from: bobAddress}));
 
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
@@ -341,12 +336,13 @@ describe("RockPaperScissors", function() {
             const stake = 500;
             const secret = soliditySha3("password", await web3.eth.getBlock("latest"));
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
+                secret, PlayerMove.SCISSORS, {from: aliceAddress});
+            const sessionHash = moveHash;
 
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
-            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash, salt,
+            await rockPaperScissorsInstance.initSession(bobAddress, stake, moveHash,
                 {from: aliceAddress});
             await web3.evm.increaseTime(defaultSessionExpirationPeriod);
             await rockPaperScissorsInstance.cancelSession(sessionHash, {from: aliceAddress});
@@ -365,13 +361,14 @@ describe("RockPaperScissors", function() {
             const stake = aliceInitialBalance + 1;
             const secret = soliditySha3("password", await web3.eth.getBlock("latest"));
             const moveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, secret, PlayerMove.SCISSORS, {from: aliceAddress});
+                secret, PlayerMove.SCISSORS, {from: aliceAddress});
+            const sessionHash = moveHash;
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                    bobAddress, stake, moveHash, salt, {from: aliceAddress}));
+                    bobAddress, stake, moveHash, {from: aliceAddress}));
 
             await truffleAssert.fails(rockPaperScissorsInstance.initSession(
-                bobAddress, stake, moveHash, salt, {from: bobAddress}));
+                bobAddress, stake, moveHash, {from: bobAddress}));
         });
 
         it('should establish game session between Alice & Bob', async () => {
@@ -380,14 +377,16 @@ describe("RockPaperScissors", function() {
 
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
+                aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
 
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
+                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
 
@@ -432,14 +431,16 @@ describe("RockPaperScissors", function() {
 
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
+                aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
 
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
+                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
 
             await web3.evm.increaseTime(defaultSessionExpirationPeriod);
 
@@ -467,17 +468,19 @@ describe("RockPaperScissors", function() {
 
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
+                aliceSecret, PlayerMove.SCISSORS, {from: aliceAddress});
 
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
+                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
 
@@ -505,14 +508,16 @@ describe("RockPaperScissors", function() {
             const aliceMove = PlayerMove.SCISSORS;
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, aliceMove, {from: aliceAddress});
+                aliceSecret, aliceMove, {from: aliceAddress});
 
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
+                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
             await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
@@ -560,14 +565,16 @@ describe("RockPaperScissors", function() {
             const aliceMove = PlayerMove.SCISSORS;
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, aliceMove, {from: aliceAddress});
+                aliceSecret, aliceMove, {from: aliceAddress});
 
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
+                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
 
@@ -598,17 +605,19 @@ describe("RockPaperScissors", function() {
             const aliceMove = PlayerMove.SCISSORS;
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, aliceMove, {from: aliceAddress});
+                aliceSecret, aliceMove, {from: aliceAddress});
 
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, PlayerMove.PAPER, {from: bobAddress});
+                bobSecret, PlayerMove.PAPER, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
             await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
@@ -638,18 +647,20 @@ describe("RockPaperScissors", function() {
             const aliceMove = PlayerMove.SCISSORS;
             const aliceSecret = soliditySha3("alice_password", block);
             const aliceMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, aliceSecret, aliceMove, {from: aliceAddress});
+                aliceSecret, aliceMove, {from: aliceAddress});
 
             const bobMove = PlayerMove.PAPER;
             const bobSecret = soliditySha3("bob_password", block);
             const bobMoveHash = await rockPaperScissorsInstance.getMoveHash(
-                sessionHash, bobSecret, bobMove, {from: bobAddress});
+                bobSecret, bobMove, {from: bobAddress});
+
+            const sessionHash = aliceMoveHash;
 
             const initGameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
 
             await rockPaperScissorsInstance.initSession(bobAddress, stake, aliceMoveHash,
-                salt, {from: aliceAddress});
+                {from: aliceAddress});
             await rockPaperScissorsInstance.acceptSession(sessionHash, bobMoveHash,
                 {from: bobAddress});
             await rockPaperScissorsInstance.revealSessionMove(sessionHash, aliceSecret,
