@@ -30,13 +30,13 @@ contract RockPaperScissors is Ownable {
 
     struct Player {
         address account;
-        bytes32 moveHash;
         PlayerMove lastMove;
     }
 
     struct GameSession {
         Player initPlayer;
         Player challengedPlayer;
+        bytes32 challengedPlayerMoveHash;
         uint stake;
         uint expirationTime;
     }
@@ -88,7 +88,6 @@ contract RockPaperScissors is Ownable {
         session.expirationTime = now.add(sessionExpirationPeriod);
 
         session.initPlayer.account = msg.sender;
-        session.initPlayer.moveHash = moveHash;
 
         session.challengedPlayer.account = challengedAddress;
 
@@ -107,7 +106,7 @@ contract RockPaperScissors is Ownable {
             "Session can be accepted only by the challenged player");
         require(session.stake <= balances[msg.sender],
             "challenged player balance is too low");
-        require(session.challengedPlayer.moveHash == bytes32(0),
+        require(session.challengedPlayerMoveHash == bytes32(0),
             "Session cannot be accepted more than once");
 
         uint stake = session.stake;
@@ -115,7 +114,7 @@ contract RockPaperScissors is Ownable {
         balances[msg.sender] = balances[msg.sender].sub(stake);
         session.expirationTime = now.add(sessionExpirationPeriod);
 
-        session.challengedPlayer.moveHash = moveHash;
+        session.challengedPlayerMoveHash = moveHash;
 
         emit LogSessionAccepted(msg.sender, sessionHash, stake);
         emit LogSessionMoveMade(msg.sender, sessionHash, moveHash);
@@ -146,7 +145,7 @@ contract RockPaperScissors is Ownable {
         } else { // Game Session state is either Initialized or Accepted.
             balances[initAddress] = balances[initAddress].add(stake);
 
-            if (session.challengedPlayer.moveHash != bytes32(0)) {
+            if (session.challengedPlayerMoveHash != bytes32(0)) {
                 // Accepted state: stake commited by the challenged player.
                 balances[challengedAddress] = balances[challengedAddress].add(stake);
             }
@@ -166,16 +165,16 @@ contract RockPaperScissors is Ownable {
         require(msg.sender == session.initPlayer.account ||
                 msg.sender == session.challengedPlayer.account,
                 "Session moves can only be revealed by the session participants");
-        require((session.initPlayer.moveHash != bytes32(0)) &&
-                (session.challengedPlayer.moveHash != bytes32(0)),
+        require((session.challengedPlayerMoveHash != bytes32(0)),
                 "Cannot reveal moves at this session state");
 
         if (msg.sender == session.initPlayer.account) {
             bytes32 moveHash = getMoveHash(secret, move);
+            bytes32 initPlayerMoveHash = sessionHash;
 
             require(session.initPlayer.lastMove == PlayerMove.NO_MOVE,
                 "Cannot reveal the move again");
-            require(session.initPlayer.moveHash == moveHash, "Move hash does not match");
+            require(initPlayerMoveHash == moveHash, "Move hash does not match");
 
             emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
 
@@ -185,7 +184,7 @@ contract RockPaperScissors is Ownable {
 
             require(session.challengedPlayer.lastMove == PlayerMove.NO_MOVE,
                 "Cannot reveal the move again");
-            require(session.challengedPlayer.moveHash == moveHash, "Move hash does not match");
+            require(session.challengedPlayerMoveHash == moveHash, "Move hash does not match");
 
             emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
 

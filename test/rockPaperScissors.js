@@ -242,8 +242,6 @@ describe("RockPaperScissors", function() {
 
             assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
                 "Init address is not correct");
-            assert.strictEqual(gameSession.initPlayer.moveHash, moveHash,
-                "Init move hash is not correct");
             assert.strictEqual(gameSession.initPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
                 "Init move is not correct");
 
@@ -399,14 +397,12 @@ describe("RockPaperScissors", function() {
 
             assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
                 "Init address is not correct");
-            assert.strictEqual(gameSession.initPlayer.moveHash, aliceMoveHash,
-                "Init move hash is not correct");
             assert.strictEqual(gameSession.initPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
                 "Init move is not correct");
 
             assert.strictEqual(gameSession.challengedPlayer.account, bobAddress,
                 "Challenged address is not correct");
-            assert.strictEqual(gameSession.challengedPlayer.moveHash, bobMoveHash,
+            assert.strictEqual(gameSession.challengedPlayerMoveHash, bobMoveHash,
                 "Challenged move hash is not correct");
             assert.strictEqual(gameSession.challengedPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
                 "Challenged move is not correct");
@@ -532,14 +528,12 @@ describe("RockPaperScissors", function() {
 
             assert.strictEqual(gameSession.initPlayer.account, aliceAddress,
                 "Init address is not correct");
-            assert.strictEqual(gameSession.initPlayer.moveHash, aliceMoveHash,
-                "Init move hash is not correct");
             assert.strictEqual(gameSession.initPlayer.lastMove, aliceMove.toString(),
                 "Init move is not correct");
 
             assert.strictEqual(gameSession.challengedPlayer.account, bobAddress,
                 "Challenged address is not correct");
-            assert.strictEqual(gameSession.challengedPlayer.moveHash, bobMoveHash,
+            assert.strictEqual(gameSession.challengedPlayerMoveHash, bobMoveHash,
                 "Challenged move hash is not correct");
             assert.strictEqual(gameSession.challengedPlayer.lastMove, PlayerMove.NO_MOVE.toString(),
                 "Challenged move is not correct");
