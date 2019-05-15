@@ -201,7 +201,7 @@ describe("RockPaperScissors", function() {
 
     describe("game session related operations", function() {
 
-        const { soliditySha3 } = web3.utils;
+        const { BN, soliditySha3 } = web3.utils;
 
         addEvmFunctions(web3);
 
@@ -673,6 +673,48 @@ describe("RockPaperScissors", function() {
             assert.strictEqual(bobBalance.toString(),
                 (bobInitialBalance - stake).toString(),
                 "Bob balance is not correct");
+        });
+
+        it('should return correct game result in different scenarios', async () => {
+            let result;
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.PAPER, PlayerMove.ROCK);
+            assert.deepStrictEqual(result.toString(), "1", "Game result is wrong");
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.PAPER, PlayerMove.PAPER);
+            assert.deepStrictEqual(result.toString(), "0", "Game result is wrong");
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.PAPER, PlayerMove.SCISSORS);
+            assert.deepStrictEqual(result.toString(), "-1", "Game result is wrong");
+
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.ROCK, PlayerMove.ROCK);
+            assert.deepStrictEqual(result.toString(), "0", "Game result is wrong");
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.ROCK, PlayerMove.PAPER);
+            assert.deepStrictEqual(result.toString(), "-1", "Game result is wrong");
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.ROCK, PlayerMove.SCISSORS);
+            assert.deepStrictEqual(result.toString(), "1", "Game result is wrong");
+
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.SCISSORS, PlayerMove.ROCK);
+            assert.deepStrictEqual(result.toString(), "-1", "Game result is wrong");
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.SCISSORS, PlayerMove.PAPER);
+            assert.deepStrictEqual(result.toString(), "1", "Game result is wrong");
+
+            result = await rockPaperScissorsInstance.lookupSessionResult(
+                PlayerMove.SCISSORS, PlayerMove.SCISSORS);
+            assert.deepStrictEqual(result.toString(), "0", "Game result is wrong");
         });
 
     });

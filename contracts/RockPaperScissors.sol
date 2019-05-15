@@ -69,19 +69,8 @@ contract RockPaperScissors is Ownable {
 
     function lookupSessionResult(PlayerMove firstMove, PlayerMove secondMove)
     public pure returns (int result) {
-        if      ((firstMove == PlayerMove.ROCK) && (secondMove == PlayerMove.ROCK)) return 0;
-        else if ((firstMove == PlayerMove.ROCK) && (secondMove == PlayerMove.PAPER)) return -1;
-        else if ((firstMove == PlayerMove.ROCK) && (secondMove == PlayerMove.SCISSORS)) return 1;
-
-        else if ((firstMove == PlayerMove.PAPER) && (secondMove == PlayerMove.PAPER)) return 0;
-        else if ((firstMove == PlayerMove.PAPER) && (secondMove == PlayerMove.SCISSORS)) return -1;
-        else if ((firstMove == PlayerMove.PAPER) && (secondMove == PlayerMove.ROCK)) return 1;
-
-        else if ((firstMove == PlayerMove.SCISSORS) && (secondMove == PlayerMove.SCISSORS)) return 0;
-        else if ((firstMove == PlayerMove.SCISSORS) && (secondMove == PlayerMove.ROCK)) return -1;
-        else if ((firstMove == PlayerMove.SCISSORS) && (secondMove == PlayerMove.PAPER)) return 1;
-
-        else revert("Incorrect arguments");
+        result = (3 + int(firstMove) - int(secondMove)) % 3;
+        result = (result != 2) ? result : -1;
     }
 
     function getMoveHash(bytes32 sessionHash, bytes32 secret, PlayerMove move)
