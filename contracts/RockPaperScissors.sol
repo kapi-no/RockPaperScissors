@@ -1,10 +1,11 @@
 pragma solidity 0.5.7;
 pragma experimental ABIEncoderV2;
 
-import '../node_modules/openzeppelin-solidity/contracts/ownership/Ownable.sol';
 import '../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol';
 
-contract RockPaperScissors is Ownable {
+import './RockPaperScissorsHub.sol';
+
+contract RockPaperScissors {
     using SafeMath for uint;
 
     event LogSessionInitialized(address indexed sender, address indexed rivalAddress,
@@ -16,10 +17,7 @@ contract RockPaperScissors is Ownable {
     event LogSessionMoveRevealed(address indexed sender, bytes32 indexed sessionHash,
         bytes32 secret, PlayerMove move);
 
-    event LogFundsWithdrawn(address indexed sender, uint amount);
-    event LogFundsDeposited(address indexed sender, uint amount);
-
-    event LogSessionExpirationPeriod(address indexed sender, uint sessionExpirationPeriod);
+    event LogContractCreated(address indexed sender, address indexed hubContract);
 
     enum PlayerMove {
         NO_MOVE,
@@ -41,14 +39,15 @@ contract RockPaperScissors is Ownable {
         uint expirationTime;
     }
 
-    uint public sessionExpirationPeriod; // in seconds
+    RockPaperScissorsHub RPSHub;
     mapping (bytes32 => GameSession) public gameSessions; // sessionHash => gameSession
-    mapping (address => uint) public balances; // playerAddress => balance
 
-    constructor(uint _sessionExpirationPeriod) public {
-        sessionExpirationPeriod = _sessionExpirationPeriod;
+    constructor(address _RPSHub) public {
+        require(_RPSHub != address(0),
+            "_RPSHub parameter cannot be equal to 0");
+        RPSHub = RockPaperScissorsHub(_RPSHub);
 
-        emit LogSessionExpirationPeriod(msg.sender, _sessionExpirationPeriod);
+        emit LogContractCreated(msg.sender, _RPSHub);
     }
 
     function lookupSessionResult(PlayerMove firstMove, PlayerMove secondMove)
@@ -69,11 +68,13 @@ contract RockPaperScissors is Ownable {
 
     function initSession(address challengedAddress, uint stake, bytes32 moveHash)
     public returns (bytes32 sessionHash) {
+        uint balance = RPSHub.balances(msg.sender);
+
         require(challengedAddress != address(0),
             "challengedAddress parameter cannot be equal to 0");
         require(challengedAddress != msg.sender,
             "challengedAddress cannot be equal to initAddress");
-        require(stake <= balances[msg.sender],
+        require(stake <= balance,
             "stake parameter cannot be greater than the account balance");
         require((stake << 1) >= stake, "Total stake overflowed");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
@@ -83,9 +84,11 @@ contract RockPaperScissors is Ownable {
 
         require(session.expirationTime == 0, "Session cannot be reinitialized");
 
-        balances[msg.sender] = balances[msg.sender].sub(stake);
+        balance = balance.sub(stake);
+        RPSHub.updateBalance(msg.sender, balance);
+
         session.stake = stake;
-        session.expirationTime = now.add(sessionExpirationPeriod);
+        session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
 
         session.initPlayer.account = msg.sender;
 
@@ -101,19 +104,20 @@ contract RockPaperScissors is Ownable {
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
         GameSession storage session = gameSessions[sessionHash];
+        uint balance = RPSHub.balances(msg.sender);
 
         require(session.challengedPlayer.account == msg.sender,
             "Session can be accepted only by the challenged player");
-        require(session.stake <= balances[msg.sender],
+        require(session.stake <= balance,
             "challenged player balance is too low");
         require(session.challengedPlayerMoveHash == bytes32(0),
             "Session cannot be accepted more than once");
 
         uint stake = session.stake;
+        balance = balance.sub(stake);
+        RPSHub.updateBalance(msg.sender, balance);
 
-        balances[msg.sender] = balances[msg.sender].sub(stake);
-        session.expirationTime = now.add(sessionExpirationPeriod);
-
+        session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
         session.challengedPlayerMoveHash = moveHash;
 
         emit LogSessionAccepted(msg.sender, sessionHash, stake);
@@ -136,18 +140,28 @@ contract RockPaperScissors is Ownable {
         uint stake = session.stake;
         if (session.initPlayer.lastMove != PlayerMove.NO_MOVE &&
             session.challengedPlayer.lastMove == PlayerMove.NO_MOVE) {
+            uint initBalance = RPSHub.balances(initAddress);
+            initBalance = initBalance.add(stake << 1);
 
-            balances[initAddress] = balances[initAddress].add(stake << 1);
+            RPSHub.updateBalance(initAddress, initBalance);
         } else if (session.initPlayer.lastMove == PlayerMove.NO_MOVE &&
             session.challengedPlayer.lastMove != PlayerMove.NO_MOVE) {
+            uint challengedBalance = RPSHub.balances(challengedAddress);
+            challengedBalance = challengedBalance.add(stake << 1);
 
-            balances[challengedAddress] = balances[challengedAddress].add(stake << 1);
+            RPSHub.updateBalance(challengedAddress, challengedBalance);
         } else { // Game Session state is either Initialized or Accepted.
-            balances[initAddress] = balances[initAddress].add(stake);
+            uint initBalance = RPSHub.balances(initAddress);
+            initBalance = initBalance.add(stake);
+
+            RPSHub.updateBalance(initAddress, initBalance);
 
             if (session.challengedPlayerMoveHash != bytes32(0)) {
                 // Accepted state: stake commited by the challenged player.
-                balances[challengedAddress] = balances[challengedAddress].add(stake);
+                uint challengedBalance = RPSHub.balances(challengedAddress);
+                challengedBalance = challengedBalance.add(stake);
+
+                RPSHub.updateBalance(challengedAddress, challengedBalance);
             }
         }
 
@@ -161,14 +175,15 @@ contract RockPaperScissors is Ownable {
     function revealSessionMove(bytes32 sessionHash, bytes32 secret, PlayerMove move) public
     returns (bool success) {
         GameSession storage session = gameSessions[sessionHash];
+        address initAddress = session.initPlayer.account;
+        address challengedAddress = session.challengedPlayer.account;
 
-        require(msg.sender == session.initPlayer.account ||
-                msg.sender == session.challengedPlayer.account,
+        require(msg.sender == initAddress || msg.sender == challengedAddress,
                 "Session moves can only be revealed by the session participants");
         require((session.challengedPlayerMoveHash != bytes32(0)),
                 "Cannot reveal moves at this session state");
 
-        if (msg.sender == session.initPlayer.account) {
+        if (msg.sender == initAddress) {
             bytes32 moveHash = getMoveHash(secret, move);
             bytes32 initPlayerMoveHash = sessionHash;
 
@@ -179,7 +194,7 @@ contract RockPaperScissors is Ownable {
             emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
 
             session.initPlayer.lastMove = move;
-        } else if (msg.sender == session.challengedPlayer.account) {
+        } else if (msg.sender == challengedAddress) {
             bytes32 moveHash = getMoveHash(secret, move);
 
             require(session.challengedPlayer.lastMove == PlayerMove.NO_MOVE,
@@ -202,52 +217,25 @@ contract RockPaperScissors is Ownable {
             stake = (result != 0) ? (stake << 1) : stake;
 
             if (result >= 0) {
-                balances[session.initPlayer.account] =
-                    balances[session.initPlayer.account].add(stake);
+                uint balance = RPSHub.balances(initAddress);
+                balance = balance.add(stake);
+
+                RPSHub.updateBalance(initAddress, balance);
             }
 
             if (result <= 0) {
-                balances[session.challengedPlayer.account] =
-                    balances[session.challengedPlayer.account].add(stake);
+                uint balance = RPSHub.balances(challengedAddress);
+                balance = balance.add(stake);
+
+                RPSHub.updateBalance(challengedAddress, balance);
             }
 
             delete gameSessions[sessionHash];
 
             emit LogSessionFinalized(msg.sender, sessionHash, result);
         } else {
-            session.expirationTime = now.add(sessionExpirationPeriod);
+            session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
         }
-
-        return true;
-    }
-
-    function withdrawFunds(uint amount) public returns (bool success) {
-        uint balance = balances[msg.sender];
-
-        require(balance >= amount, "Balance is too low");
-
-        balances[msg.sender] = balance.sub(amount);
-
-        emit LogFundsWithdrawn(msg.sender, amount);
-
-        msg.sender.transfer(amount);
-
-        return true;
-    }
-
-    function depositFunds() public payable returns (bool success) {
-        balances[msg.sender] = balances[msg.sender].add(msg.value);
-
-        emit LogFundsDeposited(msg.sender, msg.value);
-
-        return true;
-    }
-
-    function changeSessionExpirationPeriod(uint newSessionExpirationPeriod) public onlyOwner
-    returns (bool success) {
-        sessionExpirationPeriod = newSessionExpirationPeriod;
-
-        emit LogSessionExpirationPeriod(msg.sender, newSessionExpirationPeriod);
 
         return true;
     }

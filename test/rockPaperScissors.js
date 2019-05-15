@@ -2,7 +2,7 @@ const assert = require('assert-plus');
 const truffleAssert = require('truffle-assertions');
 const truffleContract = require("truffle-contract");
 
-require('events').EventEmitter.defaultMaxListeners = 60;
+require('events').EventEmitter.defaultMaxListeners = 128;
 
 const addEvmFunctions = require("./utils/evmFunctions.js");
 
@@ -13,11 +13,13 @@ const Ganache = require('ganache-cli');
 web3.setProvider(Ganache.provider());
 
 const RockPaperScissors = truffleContract(require(__dirname + "/../build/contracts/RockPaperScissors.json"));
+const RockPaperScissorsHub = truffleContract(require(__dirname + "/../build/contracts/RockPaperScissorsHub.json"));
 RockPaperScissors.setProvider(web3.currentProvider);
+RockPaperScissorsHub.setProvider(web3.currentProvider);
 
 describe("RockPaperScissors", function() {
 
-    let rockPaperScissorsInstance;
+    let rockPaperScissorsHubInstance;
 
     let ownerAddress;
     let aliceAddress;
@@ -33,10 +35,11 @@ describe("RockPaperScissors", function() {
 
         networkId = await web3.eth.net.getId();
         RockPaperScissors.setNetwork(networkId);
+        RockPaperScissorsHub.setNetwork(networkId);
     });
 
     beforeEach('setup contract for each test', async () => {
-        rockPaperScissorsInstance = await RockPaperScissors.new(
+        rockPaperScissorsHubInstance = await RockPaperScissorsHub.new(
             defaultSessionExpirationPeriod, {from: ownerAddress});
     });
 
@@ -44,13 +47,13 @@ describe("RockPaperScissors", function() {
 
         it('should change the expiration period for each game session', async () => {
             const newSessionExpirationPeriod = 9*24*3600; // 9 days.
-            const owner = await rockPaperScissorsInstance.owner();
+            const owner = await rockPaperScissorsHubInstance.owner();
 
-            await rockPaperScissorsInstance.changeSessionExpirationPeriod(
+            await rockPaperScissorsHubInstance.changeSessionExpirationPeriod(
                 newSessionExpirationPeriod, {from: owner});
 
             const sessionExpirationPeriod = await
-                rockPaperScissorsInstance.sessionExpirationPeriod();
+                rockPaperScissorsHubInstance.sessionExpirationPeriod();
 
             assert.strictEqual(sessionExpirationPeriod.toString(),
                 newSessionExpirationPeriod.toString(),
@@ -66,11 +69,11 @@ describe("RockPaperScissors", function() {
         it('should do the proper accounting of deposited funds', async () => {
             const fundsValue = 1000;
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: aliceAddress, value: fundsValue});
 
             const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
+                rockPaperScissorsHubInstance.balances(aliceAddress);
 
             assert.strictEqual(aliceBalance.toString(), fundsValue.toString(),
                 "Alice balance is not correct");
@@ -80,20 +83,20 @@ describe("RockPaperScissors", function() {
             const firstFundsValue = 1000;
             const secondFundsValue = 2000;
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: bobAddress, value: firstFundsValue});
 
             let bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(), firstFundsValue.toString(),
                 "Bob balance is not correct");
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                     {from: bobAddress, value: secondFundsValue});
 
             bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(),
                 (firstFundsValue + secondFundsValue).toString(),
@@ -104,20 +107,20 @@ describe("RockPaperScissors", function() {
             const depositValue = 1000;
             const withdrawalValue = 700;
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: bobAddress, value: depositValue});
 
             let bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(), depositValue.toString(),
                 "Bob balance is not correct");
 
-            await rockPaperScissorsInstance.withdrawFunds(withdrawalValue,
+            await rockPaperScissorsHubInstance.withdrawFunds(withdrawalValue,
                 {from: bobAddress});
 
             bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(),
                 (depositValue - withdrawalValue).toString(),
@@ -129,30 +132,30 @@ describe("RockPaperScissors", function() {
             const firstWithdrawalValue = 300;
             const secondWithdrawalValue = 700;
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: bobAddress, value: depositValue});
 
             let bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(), depositValue.toString(),
                 "Bob balance is not correct");
 
-            await rockPaperScissorsInstance.withdrawFunds(firstWithdrawalValue,
+            await rockPaperScissorsHubInstance.withdrawFunds(firstWithdrawalValue,
                 {from: bobAddress});
 
             bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(),
                 (depositValue - firstWithdrawalValue).toString(),
                 "Bob balance is not correct");
 
-            await rockPaperScissorsInstance.withdrawFunds(secondWithdrawalValue,
+            await rockPaperScissorsHubInstance.withdrawFunds(secondWithdrawalValue,
                 {from: bobAddress});
 
             bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(),
                 (depositValue - firstWithdrawalValue - secondWithdrawalValue).toString(),
@@ -163,17 +166,17 @@ describe("RockPaperScissors", function() {
             const depositValue = 1000;
             const withdrawalValue = 1001;
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: bobAddress, value: depositValue});
 
             let bobBalance = await
-                rockPaperScissorsInstance.balances(bobAddress);
+                rockPaperScissorsHubInstance.balances(bobAddress);
 
             assert.strictEqual(bobBalance.toString(), depositValue.toString(),
                 "Bob balance is not correct");
 
             await truffleAssert.fails(
-                rockPaperScissorsInstance.withdrawFunds(withdrawalValue,
+                rockPaperScissorsHubInstance.withdrawFunds(withdrawalValue,
                     {from: bobAddress}));
         });
 
@@ -181,11 +184,11 @@ describe("RockPaperScissors", function() {
             const fundsValue = 499;
             const gasPrice = await web3.eth.getGasPrice();
 
-            await rockPaperScissorsInstance.depositFunds({from: aliceAddress, value: fundsValue});
+            await rockPaperScissorsHubInstance.depositFunds({from: aliceAddress, value: fundsValue});
 
             const alicePreBalance = await web3.eth.getBalance(aliceAddress);
 
-            const aliceTxObj = await rockPaperScissorsInstance.withdrawFunds(fundsValue,
+            const aliceTxObj = await rockPaperScissorsHubInstance.withdrawFunds(fundsValue,
                 {from: aliceAddress, gasPrice: gasPrice});
 
             const aliceBalanceChange = new BN(fundsValue - aliceTxObj.receipt.gasUsed * gasPrice);
@@ -201,9 +204,11 @@ describe("RockPaperScissors", function() {
 
     describe("game session related operations", function() {
 
-        const { BN, soliditySha3 } = web3.utils;
+        const { soliditySha3 } = web3.utils;
 
         addEvmFunctions(web3);
+
+        let rockPaperScissorsInstance;
 
         const bobInitialBalance = 1000;
         const aliceInitialBalance = 1000;
@@ -216,11 +221,17 @@ describe("RockPaperScissors", function() {
         };
 
         beforeEach('setup initial balance for Alice and Bob', async () => {
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: aliceAddress, value: aliceInitialBalance});
 
-            await rockPaperScissorsInstance.depositFunds(
+            await rockPaperScissorsHubInstance.depositFunds(
                 {from: bobAddress, value: bobInitialBalance});
+
+            rockPaperScissorsInstance = await RockPaperScissors.new(
+                rockPaperScissorsHubInstance.address, {from: ownerAddress});
+
+            await rockPaperScissorsHubInstance.registerContract(rockPaperScissorsInstance.address,
+                {from: ownerAddress});
         });
 
         it('should initialize game session between Alice & Bob', async () => {
@@ -249,7 +260,7 @@ describe("RockPaperScissors", function() {
                 "Challenged address is not correct");
 
             const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
+                rockPaperScissorsHubInstance.balances(aliceAddress);
 
             assert.strictEqual(aliceBalance.toString(),
                 (aliceInitialBalance - stake).toString(),
@@ -348,7 +359,7 @@ describe("RockPaperScissors", function() {
             const gameSession = await
                 rockPaperScissorsInstance.gameSessions(sessionHash);
             const aliceBalance = await
-                rockPaperScissorsInstance.balances(aliceAddress);
+                rockPaperScissorsHubInstance.balances(aliceAddress);
 
             assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
             assert.strictEqual(aliceBalance.toString(), aliceInitialBalance.toString(),
@@ -427,9 +438,9 @@ describe("RockPaperScissors", function() {
                     "Challenged move is not correct");
 
                 const aliceBalance = await
-                    rockPaperScissorsInstance.balances(aliceAddress);
+                    rockPaperScissorsHubInstance.balances(aliceAddress);
                 const bobBalance = await
-                    rockPaperScissorsInstance.balances(bobAddress);
+                    rockPaperScissorsHubInstance.balances(bobAddress);
 
                 assert.strictEqual(aliceBalance.toString(),
                     (aliceInitialBalance - stake).toString(),
@@ -479,9 +490,9 @@ describe("RockPaperScissors", function() {
                 const gameSession = await
                     rockPaperScissorsInstance.gameSessions(sessionHash);
                 const aliceBalance = await
-                    rockPaperScissorsInstance.balances(aliceAddress);
+                    rockPaperScissorsHubInstance.balances(aliceAddress);
                 const bobBalance = await
-                    rockPaperScissorsInstance.balances(bobAddress);
+                    rockPaperScissorsHubInstance.balances(bobAddress);
 
                 assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
                 assert.strictEqual(aliceBalance.toString(), aliceInitialBalance.toString(),
@@ -518,9 +529,9 @@ describe("RockPaperScissors", function() {
                     "Challenged move is not correct");
 
                 const aliceBalance = await
-                    rockPaperScissorsInstance.balances(aliceAddress);
+                    rockPaperScissorsHubInstance.balances(aliceAddress);
                 const bobBalance = await
-                    rockPaperScissorsInstance.balances(bobAddress);
+                    rockPaperScissorsHubInstance.balances(bobAddress);
 
                 assert.strictEqual(aliceBalance.toString(),
                     (aliceInitialBalance - stake).toString(),
@@ -574,9 +585,9 @@ describe("RockPaperScissors", function() {
                 const gameSession = await
                     rockPaperScissorsInstance.gameSessions(sessionHash);
                 const aliceBalance = await
-                    rockPaperScissorsInstance.balances(aliceAddress);
+                    rockPaperScissorsHubInstance.balances(aliceAddress);
                 const bobBalance = await
-                    rockPaperScissorsInstance.balances(bobAddress);
+                    rockPaperScissorsHubInstance.balances(bobAddress);
 
                 assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
                 assert.strictEqual(aliceBalance.toString(), (aliceInitialBalance + stake).toString(),
@@ -604,9 +615,9 @@ describe("RockPaperScissors", function() {
                 assert.deepStrictEqual(gameSession, initGameSession, "Sessions are different");
 
                 const aliceBalance = await
-                    rockPaperScissorsInstance.balances(aliceAddress);
+                    rockPaperScissorsHubInstance.balances(aliceAddress);
                 const bobBalance = await
-                    rockPaperScissorsInstance.balances(bobAddress);
+                    rockPaperScissorsHubInstance.balances(bobAddress);
 
                 assert.strictEqual(aliceBalance.toString(),
                     (aliceInitialBalance + stake).toString(),
