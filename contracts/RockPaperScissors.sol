@@ -35,13 +35,13 @@ contract RockPaperScissors {
         uint expirationTime;
     }
 
-    RockPaperScissorsHub RPSHub;
+    RockPaperScissorsHubInterface RPSHub;
     mapping (bytes32 => GameSession) public gameSessions; // sessionHash => gameSession
 
     constructor(address _RPSHub) public {
         require(_RPSHub != address(0),
             "_RPSHub parameter cannot be equal to 0");
-        RPSHub = RockPaperScissorsHub(_RPSHub);
+        RPSHub = RockPaperScissorsHubInterface(_RPSHub);
 
         emit LogContractCreated(msg.sender, _RPSHub);
     }

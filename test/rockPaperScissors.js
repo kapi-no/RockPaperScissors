@@ -227,11 +227,12 @@ describe("RockPaperScissors", function() {
             await rockPaperScissorsHubInstance.depositFunds(
                 {from: bobAddress, value: bobInitialBalance});
 
-            rockPaperScissorsInstance = await RockPaperScissors.new(
-                rockPaperScissorsHubInstance.address, {from: ownerAddress});
+            const createTx = await
+                rockPaperScissorsHubInstance.createRockPaperScissors(
+                    {from: ownerAddress, gas: 5000000});
 
-            await rockPaperScissorsHubInstance.registerContract(rockPaperScissorsInstance.address,
-                {from: ownerAddress});
+            rockPaperScissorsInstance = await
+                RockPaperScissors.at(createTx.logs[0].args.RPSContract);
         });
 
         it('should initialize game session between Alice & Bob', async () => {
