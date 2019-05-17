@@ -13,7 +13,8 @@ contract RockPaperScissors {
     event LogSessionAccepted(address indexed sender, bytes32 indexed sessionHash, uint stake);
     event LogSessionCanceled(address indexed sender, bytes32 indexed sessionHash);
     event LogSessionFinalized(address indexed sender, bytes32 indexed sessionHash, int result);
-    event LogSessionMoveMade(address indexed sender, bytes32 indexed sessionHash, bytes32 moveHash);
+    event LogSessionMoveHashed(address indexed sender, bytes32 indexed sessionHash, bytes32 moveHash);
+    event LogSessionMoveMade(address indexed sender, bytes32 indexed sessionHash, PlayerMove move);
     event LogSessionMoveRevealed(address indexed sender, bytes32 indexed sessionHash,
         bytes32 secret, PlayerMove move);
 
@@ -26,15 +27,10 @@ contract RockPaperScissors {
         SCISSORS
     }
 
-    struct Player {
-        address account;
-        PlayerMove lastMove;
-    }
-
     struct GameSession {
-        Player initPlayer;
-        Player challengedPlayer;
-        bytes32 challengedPlayerMoveHash;
+        address initPlayer;
+        address challengedPlayer;
+        PlayerMove challengedPlayerMove;
         uint stake;
         uint expirationTime;
     }
@@ -90,27 +86,28 @@ contract RockPaperScissors {
         session.stake = stake;
         session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
 
-        session.initPlayer.account = msg.sender;
-
-        session.challengedPlayer.account = challengedAddress;
+        session.initPlayer = msg.sender;
+        session.challengedPlayer = challengedAddress;
 
         emit LogSessionInitialized(msg.sender, challengedAddress, stake, sessionHash);
-        emit LogSessionMoveMade(msg.sender, sessionHash, moveHash);
+        emit LogSessionMoveHashed(msg.sender, sessionHash, moveHash);
     }
 
-    function acceptSession(bytes32 sessionHash, bytes32 moveHash) public
+    function acceptSession(bytes32 sessionHash, PlayerMove move) public
     returns (bool success) {
         require(sessionHash != bytes32(0), "sessionHash parameter cannot be equal to 0");
-        require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
+        require((uint(move) > uint(PlayerMove.NO_MOVE)) &&
+                (uint(move) <= uint(PlayerMove.SCISSORS)),
+                "move parameter value is incorrect");
 
         GameSession storage session = gameSessions[sessionHash];
         uint balance = RPSHub.balances(msg.sender);
 
-        require(session.challengedPlayer.account == msg.sender,
+        require(session.challengedPlayer == msg.sender,
             "Session can be accepted only by the challenged player");
         require(session.stake <= balance,
             "challenged player balance is too low");
-        require(session.challengedPlayerMoveHash == bytes32(0),
+        require(session.challengedPlayerMove == PlayerMove.NO_MOVE,
             "Session cannot be accepted more than once");
 
         uint stake = session.stake;
@@ -118,10 +115,10 @@ contract RockPaperScissors {
         RPSHub.updateBalance(msg.sender, balance);
 
         session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
-        session.challengedPlayerMoveHash = moveHash;
+        session.challengedPlayerMove = move;
 
         emit LogSessionAccepted(msg.sender, sessionHash, stake);
-        emit LogSessionMoveMade(msg.sender, sessionHash, moveHash);
+        emit LogSessionMoveMade(msg.sender, sessionHash, move);
 
         return true;
     }
@@ -130,42 +127,34 @@ contract RockPaperScissors {
         require(sessionHash != bytes32(0), "sessionHash parameter cannot be equal to 0");
 
         GameSession storage session = gameSessions[sessionHash];
-        address initAddress = session.initPlayer.account;
-        address challengedAddress = session.challengedPlayer.account;
+        address initAddress = session.initPlayer;
+        address challengedAddress = session.challengedPlayer;
 
         require(msg.sender == initAddress || msg.sender == challengedAddress,
                 "Session can only be canceled by the session participants");
         require(now >= session.expirationTime, "Session has not expired yet");
 
         uint stake = session.stake;
-        if (session.initPlayer.lastMove != PlayerMove.NO_MOVE &&
-            session.challengedPlayer.lastMove == PlayerMove.NO_MOVE) {
-            uint initBalance = RPSHub.balances(initAddress);
-            initBalance = initBalance.add(stake << 1);
-
-            RPSHub.updateBalance(initAddress, initBalance);
-        } else if (session.initPlayer.lastMove == PlayerMove.NO_MOVE &&
-            session.challengedPlayer.lastMove != PlayerMove.NO_MOVE) {
+        if (session.challengedPlayerMove != PlayerMove.NO_MOVE) {
+            // Game Session is in the Accepted state.
             uint challengedBalance = RPSHub.balances(challengedAddress);
             challengedBalance = challengedBalance.add(stake << 1);
 
             RPSHub.updateBalance(challengedAddress, challengedBalance);
-        } else { // Game Session state is either Initialized or Accepted.
+        } else {
+            // Game Session is in the Initialized state.
             uint initBalance = RPSHub.balances(initAddress);
             initBalance = initBalance.add(stake);
 
             RPSHub.updateBalance(initAddress, initBalance);
-
-            if (session.challengedPlayerMoveHash != bytes32(0)) {
-                // Accepted state: stake commited by the challenged player.
-                uint challengedBalance = RPSHub.balances(challengedAddress);
-                challengedBalance = challengedBalance.add(stake);
-
-                RPSHub.updateBalance(challengedAddress, challengedBalance);
-            }
         }
 
-        delete gameSessions[sessionHash];
+        /* Clean up the session and leave the value of expiration time so the session hash
+        cannot be reused. */
+        session.initPlayer = address(0);
+        session.challengedPlayer = address(0);
+        session.challengedPlayerMove = PlayerMove.NO_MOVE;
+        session.stake = 0;
 
         emit LogSessionCanceled(msg.sender, sessionHash);
 
@@ -175,67 +164,47 @@ contract RockPaperScissors {
     function revealSessionMove(bytes32 sessionHash, bytes32 secret, PlayerMove move) public
     returns (bool success) {
         GameSession storage session = gameSessions[sessionHash];
-        address initAddress = session.initPlayer.account;
-        address challengedAddress = session.challengedPlayer.account;
+        address initAddress = session.initPlayer;
+        address challengedAddress = session.challengedPlayer;
 
-        require(msg.sender == initAddress || msg.sender == challengedAddress,
-                "Session moves can only be revealed by the session participants");
-        require((session.challengedPlayerMoveHash != bytes32(0)),
-                "Cannot reveal moves at this session state");
+        require(msg.sender == initAddress,
+                "Session move can only be revealed by the Initiator");
+        require((session.challengedPlayerMove != PlayerMove.NO_MOVE),
+                "Cannot reveal initiator move at this session state");
 
-        if (msg.sender == initAddress) {
-            bytes32 moveHash = getMoveHash(secret, move);
-            bytes32 initPlayerMoveHash = sessionHash;
+        bytes32 moveHash = getMoveHash(secret, move);
+        bytes32 initPlayerMoveHash = sessionHash;
 
-            require(session.initPlayer.lastMove == PlayerMove.NO_MOVE,
-                "Cannot reveal the move again");
-            require(initPlayerMoveHash == moveHash, "Move hash does not match");
+        require(initPlayerMoveHash == moveHash, "Move hash does not match");
+        emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
 
-            emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
+        int result = lookupSessionResult(move, session.challengedPlayerMove);
+        uint stake = session.stake;
 
-            session.initPlayer.lastMove = move;
-        } else if (msg.sender == challengedAddress) {
-            bytes32 moveHash = getMoveHash(secret, move);
+        stake = (result != 0) ? (stake << 1) : stake;
 
-            require(session.challengedPlayer.lastMove == PlayerMove.NO_MOVE,
-                "Cannot reveal the move again");
-            require(session.challengedPlayerMoveHash == moveHash, "Move hash does not match");
+        if (result >= 0) {
+            uint balance = RPSHub.balances(initAddress);
+            balance = balance.add(stake);
 
-            emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
-
-            session.challengedPlayer.lastMove = move;
-        } else {
-            revert("Unauthorized access to the request session");
+            RPSHub.updateBalance(initAddress, balance);
         }
 
-        if ((session.initPlayer.lastMove != PlayerMove.NO_MOVE) &&
-            (session.challengedPlayer.lastMove != PlayerMove.NO_MOVE)) {
-            int result = lookupSessionResult(session.initPlayer.lastMove,
-                session.challengedPlayer.lastMove);
-            uint stake = session.stake;
+        if (result <= 0) {
+            uint balance = RPSHub.balances(challengedAddress);
+            balance = balance.add(stake);
 
-            stake = (result != 0) ? (stake << 1) : stake;
-
-            if (result >= 0) {
-                uint balance = RPSHub.balances(initAddress);
-                balance = balance.add(stake);
-
-                RPSHub.updateBalance(initAddress, balance);
-            }
-
-            if (result <= 0) {
-                uint balance = RPSHub.balances(challengedAddress);
-                balance = balance.add(stake);
-
-                RPSHub.updateBalance(challengedAddress, balance);
-            }
-
-            delete gameSessions[sessionHash];
-
-            emit LogSessionFinalized(msg.sender, sessionHash, result);
-        } else {
-            session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
+            RPSHub.updateBalance(challengedAddress, balance);
         }
+
+        /* Clean up the session and leave the value of expiration time so the session hash
+        cannot be reused. */
+        session.initPlayer = address(0);
+        session.challengedPlayer = address(0);
+        session.challengedPlayerMove = PlayerMove.NO_MOVE;
+        session.stake = 0;
+
+        emit LogSessionFinalized(msg.sender, sessionHash, result);
 
         return true;
     }
