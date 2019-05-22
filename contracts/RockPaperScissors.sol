@@ -62,14 +62,10 @@ contract RockPaperScissors {
 
     function initSession(address challengedAddress, uint stake, bytes32 moveHash)
     public returns (bool success) {
-        uint balance = RPSHub.balances(msg.sender);
-
         require(challengedAddress != address(0),
             "challengedAddress parameter cannot be equal to 0");
         require(challengedAddress != msg.sender,
             "challengedAddress cannot be equal to initAddress");
-        require(stake <= balance,
-            "stake parameter cannot be greater than the account balance");
         require((stake << 1) >= stake, "Total stake overflowed");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
@@ -77,8 +73,7 @@ contract RockPaperScissors {
 
         require(session.expirationTime == 0, "Session cannot be reinitialized");
 
-        balance = balance.sub(stake);
-        RPSHub.updateBalance(msg.sender, balance);
+        RPSHub.betStake(msg.sender, stake);
 
         session.stake = stake;
         session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
@@ -100,18 +95,14 @@ contract RockPaperScissors {
                 "move parameter value is incorrect");
 
         GameSession storage session = gameSessions[sessionHash];
-        uint balance = RPSHub.balances(msg.sender);
 
         require(session.challengedPlayer == msg.sender,
             "Session can be accepted only by the challenged player");
-        require(session.stake <= balance,
-            "challenged player balance is too low");
         require(session.challengedPlayerMove == PlayerMove.NO_MOVE,
             "Session cannot be accepted more than once");
 
         uint stake = session.stake;
-        balance = balance.sub(stake);
-        RPSHub.updateBalance(msg.sender, balance);
+        RPSHub.betStake(msg.sender, stake);
 
         session.expirationTime = now.add(RPSHub.sessionExpirationPeriod());
         session.challengedPlayerMove = move;
@@ -136,16 +127,12 @@ contract RockPaperScissors {
         uint stake = session.stake;
         if (session.challengedPlayerMove != PlayerMove.NO_MOVE) {
             // Game Session is in the Accepted state.
-            uint challengedBalance = RPSHub.balances(challengedAddress);
-            challengedBalance = challengedBalance.add(stake << 1);
+            uint reward = (stake << 1);
 
-            RPSHub.updateBalance(challengedAddress, challengedBalance);
+            RPSHub.assignReward(challengedAddress, reward);
         } else {
             // Game Session is in the Initialized state.
-            uint initBalance = RPSHub.balances(initAddress);
-            initBalance = initBalance.add(stake);
-
-            RPSHub.updateBalance(initAddress, initBalance);
+            RPSHub.assignReward(initAddress, stake);
         }
 
         /* Clean up the session and leave the value of expiration time so the session hash
@@ -180,17 +167,11 @@ contract RockPaperScissors {
         stake = (result != 0) ? (stake << 1) : stake;
 
         if (result >= 0) {
-            uint balance = RPSHub.balances(initAddress);
-            balance = balance.add(stake);
-
-            RPSHub.updateBalance(initAddress, balance);
+            RPSHub.assignReward(initAddress, stake);
         }
 
         if (result <= 0) {
-            uint balance = RPSHub.balances(challengedAddress);
-            balance = balance.add(stake);
-
-            RPSHub.updateBalance(challengedAddress, balance);
+            RPSHub.assignReward(challengedAddress, stake);
         }
 
         /* Clean up the session and leave the value of expiration time so the session hash

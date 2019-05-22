@@ -11,8 +11,8 @@ contract RockPaperScissorsHubInterface {
     uint public sessionExpirationPeriod; // in seconds
     mapping (address => uint) public balances; // playerAddress => balance
 
-    function updateBalance(address playerAddress, uint newBalance) public
-        returns (bool success);
+    function betStake(address playerAddress, uint stake) public returns (bool success);
+    function assignReward(address playerAddress, uint reward) public returns (bool success);
     function withdrawFunds(uint amount) public returns (bool success);
     function depositFunds() public payable returns (bool success);
     function createRockPaperScissors() public payable returns (address RPSContract);
@@ -26,7 +26,8 @@ contract RockPaperScissorsHub is RockPaperScissorsHubInterface, Ownable {
     event LogFundsWithdrawn(address indexed sender, uint amount);
     event LogFundsDeposited(address indexed sender, uint amount);
 
-    event LogBalanceUpdated(address indexed sender, address indexed account, uint balance);
+    event LogStakeBet(address indexed sender, address indexed account, uint stake);
+    event LogRewardAssigned(address indexed sender, address indexed account, uint reward);
 
     event LogSessionExpirationPeriod(address indexed sender, uint sessionExpirationPeriod);
     event LogRPSContractCreated(address indexed sender, address indexed RPSContract);
@@ -44,23 +45,30 @@ contract RockPaperScissorsHub is RockPaperScissorsHubInterface, Ownable {
         emit LogSessionExpirationPeriod(msg.sender, _sessionExpirationPeriod);
     }
 
-    function updateBalance(address playerAddress, uint newBalance) public onlyRPSContracts
+    function betStake(address playerAddress, uint stake) public onlyRPSContracts
     returns (bool success) {
-        balances[playerAddress] = newBalance;
+        balances[playerAddress] = balances[playerAddress].sub(stake);
+        balances[msg.sender] = balances[msg.sender].add(stake);
 
-        emit LogBalanceUpdated(msg.sender, playerAddress, newBalance);
+        emit LogStakeBet(msg.sender, playerAddress, stake);
+
+        return true;
+    }
+
+    function assignReward(address playerAddress, uint reward) public onlyRPSContracts
+    returns (bool success) {
+        balances[msg.sender] = balances[msg.sender].sub(reward);
+        balances[playerAddress] = balances[playerAddress].add(reward);
+
+        emit LogRewardAssigned(msg.sender, playerAddress, reward);
+
         return true;
     }
 
     function withdrawFunds(uint amount) public returns (bool success) {
-        uint balance = balances[msg.sender];
-
-        require(balance >= amount, "Balance is too low");
-
-        balances[msg.sender] = balance.sub(amount);
+        balances[msg.sender] = balances[msg.sender].sub(amount);
 
         emit LogFundsWithdrawn(msg.sender, amount);
-
         msg.sender.transfer(amount);
 
         return true;
