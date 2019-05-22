@@ -29,9 +29,7 @@ describe("RockPaperScissors", function() {
 
     before("setup global variables", async () => {
         accounts = await web3.eth.getAccounts();
-        ownerAddress = accounts[0];
-        aliceAddress = accounts[1];
-        bobAddress = accounts[2];
+        [ownerAddress, aliceAddress, bobAddress] = accounts;
 
         networkId = await web3.eth.net.getId();
         RockPaperScissors.setNetwork(networkId);

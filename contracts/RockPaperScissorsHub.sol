@@ -15,7 +15,7 @@ contract RockPaperScissorsHubInterface {
         returns (bool success);
     function withdrawFunds(uint amount) public returns (bool success);
     function depositFunds() public payable returns (bool success);
-    function createRockPaperScissors() public returns (address RPSContract);
+    function createRockPaperScissors() public payable returns (address RPSContract);
     function changeSessionExpirationPeriod(uint newSessionExpirationPeriod) public
         returns (bool success);
 }
@@ -31,11 +31,10 @@ contract RockPaperScissorsHub is RockPaperScissorsHubInterface, Ownable {
     event LogSessionExpirationPeriod(address indexed sender, uint sessionExpirationPeriod);
     event LogRPSContractCreated(address indexed sender, address indexed RPSContract);
 
-    mapping(bytes32 => bool) private RPSContracts;
+    mapping(address => bool) private RPSContracts;
 
     modifier onlyRPSContracts() {
-        require(RPSContracts[keccak256(abi.encodePacked(msg.sender))],
-            "Contract is not registered");
+        require(RPSContracts[msg.sender], "Contract is not registered");
         _;
     }
 
@@ -75,14 +74,17 @@ contract RockPaperScissorsHub is RockPaperScissorsHubInterface, Ownable {
         return true;
     }
 
-    function createRockPaperScissors() public onlyOwner returns (address RPSContract) {
-        RockPaperScissors RPS = new RockPaperScissors(address(this));
-        RPSContract = address(RPS);
+    function createRockPaperScissors() public payable returns (address rpsContract) {
+        if (msg.sender != owner()) {
+            require(msg.value > tx.gasprice * 1000, "Fee is too low");
+        }
 
-        RPSContracts[keccak256(abi.encodePacked(RPSContract))] = true;
-        emit LogRPSContractCreated(msg.sender, RPSContract);
+        RockPaperScissors RPS = new RockPaperScissors();
+        rpsContract = address(RPS);
 
-        return RPSContract;
+        balances[owner()] += msg.value;
+        RPSContracts[rpsContract] = true;
+        emit LogRPSContractCreated(msg.sender, rpsContract);
     }
 
     function changeSessionExpirationPeriod(uint newSessionExpirationPeriod) public onlyOwner

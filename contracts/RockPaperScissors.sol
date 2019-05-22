@@ -18,7 +18,7 @@ contract RockPaperScissors {
     event LogSessionMoveRevealed(address indexed sender, bytes32 indexed sessionHash,
         bytes32 secret, PlayerMove move);
 
-    event LogContractCreated(address indexed sender, address indexed hubContract);
+    event LogContractCreated(address indexed sender);
 
     enum PlayerMove {
         NO_MOVE,
@@ -38,12 +38,10 @@ contract RockPaperScissors {
     RockPaperScissorsHubInterface RPSHub;
     mapping (bytes32 => GameSession) public gameSessions; // sessionHash => gameSession
 
-    constructor(address _RPSHub) public {
-        require(_RPSHub != address(0),
-            "_RPSHub parameter cannot be equal to 0");
-        RPSHub = RockPaperScissorsHubInterface(_RPSHub);
+    constructor() public {
+        RPSHub = RockPaperScissorsHubInterface(msg.sender);
 
-        emit LogContractCreated(msg.sender, _RPSHub);
+        emit LogContractCreated(msg.sender);
     }
 
     function lookupSessionResult(PlayerMove firstMove, PlayerMove secondMove)
@@ -63,7 +61,7 @@ contract RockPaperScissors {
     }
 
     function initSession(address challengedAddress, uint stake, bytes32 moveHash)
-    public returns (bytes32 sessionHash) {
+    public returns (bool success) {
         uint balance = RPSHub.balances(msg.sender);
 
         require(challengedAddress != address(0),
@@ -75,8 +73,7 @@ contract RockPaperScissors {
         require((stake << 1) >= stake, "Total stake overflowed");
         require(moveHash != bytes32(0), "moveHash parameter cannot be equal to 0");
 
-        sessionHash = moveHash;
-        GameSession storage session = gameSessions[sessionHash];
+        GameSession storage session = gameSessions[moveHash];
 
         require(session.expirationTime == 0, "Session cannot be reinitialized");
 
@@ -89,8 +86,10 @@ contract RockPaperScissors {
         session.initPlayer = msg.sender;
         session.challengedPlayer = challengedAddress;
 
-        emit LogSessionInitialized(msg.sender, challengedAddress, stake, sessionHash);
-        emit LogSessionMoveHashed(msg.sender, sessionHash, moveHash);
+        emit LogSessionInitialized(msg.sender, challengedAddress, stake, moveHash);
+        emit LogSessionMoveHashed(msg.sender, moveHash, moveHash);
+
+        return true;
     }
 
     function acceptSession(bytes32 sessionHash, PlayerMove move) public
@@ -172,10 +171,7 @@ contract RockPaperScissors {
         require((session.challengedPlayerMove != PlayerMove.NO_MOVE),
                 "Cannot reveal initiator move at this session state");
 
-        bytes32 moveHash = getMoveHash(secret, move);
-        bytes32 initPlayerMoveHash = sessionHash;
-
-        require(initPlayerMoveHash == moveHash, "Move hash does not match");
+        require(sessionHash == getMoveHash(secret, move), "Move hash does not match");
         emit LogSessionMoveRevealed(msg.sender, sessionHash, secret, move);
 
         int result = lookupSessionResult(move, session.challengedPlayerMove);
